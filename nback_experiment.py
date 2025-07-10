@@ -86,6 +86,7 @@ current_instruction_page = 0
 try:
     engine = pyttsx3.init()
     engine.setProperty('rate', 150) 
+    engine.setProperty('rate', 150)
 except Exception as e:
     engine = None
     print(f"TTS initialization failed: {e}")
