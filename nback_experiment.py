@@ -14,13 +14,13 @@ STIMULUS_DURATION = 0.76  # seconds (760 ms) for main experiment
 TUTORIAL_STIMULUS_DURATION = 2.0  # 3 seconds for tutorial
 ITI_DURATION = 1.5  # seconds
 TRAINING_TRIALS = 15
-EXPERIMENT_TRIALS = 10
+EXPERIMENT_TRIALS = 20
 TARGET_PERCENTAGE = 0.2
-N_LEVELS = [1, 2]
+N_LEVELS = [1, 2, 3, 4, 5]
 DIGITS = list(range(10))
 SEEDS = ['alpha', 'bravo', 'charlie', 'delta', 'echo']
 CSV_PATH = 'sample_sheet.csv'
-DEBUG = True  # Set to True for debugging output
+DEBUG = False  # Set to True for debugging output
 
 # --- Turorial Instructions ---
 NARRATIONS = {
@@ -85,7 +85,7 @@ current_instruction_page = 0
 # --- Init voice engine ---
 try:
     engine = pyttsx3.init()
-    engine.setProperty('rate', 500) #changed from 150
+    engine.setProperty('rate', 150) 
 except Exception as e:
     engine = None
     print(f"TTS initialization failed: {e}")
@@ -524,7 +524,7 @@ def save_data():
                     "Trial Index": trial['trial_index'],
                     "Stimulus Digit": trial['stimulus_digit'],
                     "Is Target": trial['is_target'],
-                    "Response (Pressed)": trial['response'],
+                    "Response": trial['response'],
                     "Accuracy": trial['accuracy'],
                     "Reaction Time (ms)": trial['rt'],
                     "Stimulus Onset (ms)": trial['stimulus_onset'],
