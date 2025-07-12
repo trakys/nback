@@ -10,30 +10,31 @@ from tkinter import ttk, messagebox
 from pathlib import Path
 
 # --- Config ---
-STIMULUS_DURATION = 0.76  # seconds (760 ms) for main experiment
-TUTORIAL_STIMULUS_DURATION = 2.0  # 3 seconds for tutorial
-ITI_DURATION = 1.5  # seconds
+STIMULUS_DURATION = 0.5  # seconds (500 ms) for main experiment
+TUTORIAL_STIMULUS_DURATION = 2.0  # 2 seconds for tutorial
+ITI_DURATION = 1.5  # seconds in between stimuli
 TRAINING_TRIALS = 15
-EXPERIMENT_TRIALS = 20
+EXPERIMENT_TRIALS = 30
 TARGET_PERCENTAGE = 0.2
 N_LEVELS = [1, 2, 3, 4, 5]
-DIGITS = list(range(10))
+#DIGITS = list(range(10)) - if we want to use numbers instead of letters
+LETTERS = ['B', 'F', 'G', 'H', 'K', 'M', 'Q', 'T', 'R', 'X']  # Phonologically distinct letters
 SEEDS = ['alpha', 'bravo', 'charlie', 'delta', 'echo']
 CSV_PATH = 'sample_sheet.csv'
 DEBUG = False  # Set to True for debugging output
 
 # --- Turorial Instructions ---
 NARRATIONS = {
-    1: "Welcome to the N-back experiment. In this task, numbers will be presented on the screen one at a time. "
-       "Pay attention to the numbers, and if the number on the screen is the same as the number N times before, "
+    1: "Welcome to the N-back experiment. In this task, letters will be presented on the screen one at a time. "
+       "Pay attention to the letters, and if the letter on the screen is the same as the one N times before, "
        "press the spacebar. Press next to view examples.",
-    2: "This is a 1-back example. Press the SPACEBAR when the number is the same as the previous number. "
-       "In this sequence: 5, 3, 3 - you should press SPACE on the third number because it matches the previous number.",
-    3: "This is a 2-back example. Press the SPACEBAR when the number is the same as the number shown two numbers ago. "
-       "In this sequence: 5, 3, 5 - you should press SPACE on the third number because it matches the number two positions back.",
+    2: "This is a 1-back example. Press the SPACEBAR when the letter is the same as the previous letter. "
+       "In this sequence: B, D, D - you should press SPACE on the third letter because it matches the previous letter.",
+    3: "This is a 2-back example. Press the SPACEBAR when the letter is the same as the letter shown two letters ago. "
+       "In this sequence: B, D, B - you should press SPACE on the third letter because it matches the letter two positions back.",
     4: "For the tutorial, you will practice both 1-back and 2-back tasks. During practice, you'll get immediate feedback "
        "on your responses. The tutorial includes 6 trials for each task with a mix of targets and non-targets. "
-       "Remember: Press SPACE only if the number matches the one shown N positions back! "
+       "Remember: Press SPACE only if the letter matches the one shown N positions back! "
        "When ready, press Start Training. If familiar with the task, you may Skip Training."
 }
 
@@ -115,47 +116,38 @@ def prepare_blocks(training=False):
     seed_word = SEEDS[current_version - 1]
     rng = seeded_rng(seed_word)
     levels = N_LEVELS
-    
-    # Only include 1-back and 2-back for training
-    if training:
-        levels = [1, 2]  # Only 1-back and 2-back for training
-    else:
-        levels = N_LEVELS  # All levels for main experiment
-    
-    trial_count = TRAINING_TRIALS if training else EXPERIMENT_TRIALS
-    
+        
     for n in levels:
         trials = []
         target_indices = []
         
         # Only create targets if we have enough trials
-        if trial_count > n:
-            num_targets = max(1, int(trial_count * TARGET_PERCENTAGE))
-            target_indices = rng.sample(range(n, trial_count), num_targets)
+        if EXPERIMENT_TRIALS > n:
+            num_targets = max(1, int(EXPERIMENT_TRIALS * TARGET_PERCENTAGE))
+            target_indices = rng.sample(range(n, EXPERIMENT_TRIALS), num_targets)
         
-        for i in range(trial_count):
+        for i in range(EXPERIMENT_TRIALS):
             is_target = False
-            digit = None
+            letter = None
             
             if i < n:
                 # First n trials can't be targets
-                digit = rng.choice(DIGITS)
+                letter = rng.choice(LETTERS)
             elif i in target_indices:
                 # Target trial
-                digit = trials[i - n]['digit']
+                letter = trials[i - n]['letter']
                 is_target = True
             else:
                 # Non-target trial
-                prev_digit = trials[i - n]['digit']
-                # Efficient digit selection without creating a new list
-                digit = rng.choice([d for d in DIGITS if d != prev_digit])
+                prev_letter = trials[i - n]['letter']
+                # Efficient letter selection without creating a new list
+                letter = rng.choice([d for d in LETTERS if d != prev_letter])
                 
-            trials.append({"digit": digit, "is_target": is_target})
+            trials.append({"letter": letter, "is_target": is_target})
         
         experiment_blocks.append({
             "n": n, 
             "trials": trials, 
-            "training": training
         })
     
     block_index = 0
@@ -165,9 +157,9 @@ def prepare_blocks(training=False):
 def create_tutorial_block(n, sequences):
     """Create tutorial block with specified sequences"""
     trials = []
-    for i, (digits, targets, feedbacks) in enumerate(sequences):
+    for i, (letters, targets, feedbacks) in enumerate(sequences):
         trials.append({
-            "digit": digits,
+            "letter": letters,
             "is_target": targets,
             "correct_response": targets,  # Should press for targets
             "feedback": feedbacks
@@ -180,23 +172,23 @@ def create_tutorial_block(n, sequences):
 
 def get_tutorial_blocks():
     """Generate tutorial blocks with optimized structure"""
-    # Format: (digit, is_target, show_feedback)
+    # Format: (letter, is_target, show_feedback)
     return [
         create_tutorial_block(1, [
-            (5, False, False),  # First stimulus - no feedback
-            (3, False, True),
-            (3, True, True),
-            (4, False, True),
-            (4, True, True),
-            (2, False, True)
+            ('B', False, False),  # First stimulus - no feedback
+            ('D', False, True),
+            ('D', True, True),
+            ('F', False, True),
+            ('F', True, True),
+            ('G', False, True)
         ]),
         create_tutorial_block(2, [
-            (5, False, False),  # First stimulus - no feedback
-            (3, False, True),
-            (5, True, True),
-            (6, False, True),
-            (3, True, True),
-            (7, False, True)
+            ('B', False, False),  # First stimulus - no feedback
+            ('D', False, True),
+            ('B', True, True),
+            ('H', False, True),
+            ('D', True, True),
+            ('K', False, True)
         ])
     ]
 
@@ -242,14 +234,15 @@ def run_trial():
     
     # Show stimulus
     trial = trials[trial_index]
-    stimulus_label.config(text=str(trial['digit']), fg='white')  # Always white for actual trials
+    stimulus_label.config(text=str(trial['letter']), fg='white')  # Always white for actual trials
     instruction_label.config(text="")  # No instructions for actual trials
     feedback_label.config(text="")  # No feedback for actual trials
     root.update_idletasks()  
-    stimulus_onset = time.time() * 1000  # Record stimulus onset in ms (starting from epoch time, aka Jan 1, 1970)
+    stimulus_onset = time.time() * 1000  # Record exact time stimulus appears (in ms since epoch time, aka Jan 1, 1970)
     
     response = {'pressed': False, 'rt': None}
-    rt_start = time.time() * 1000 # Record reaction time onset in ms (starting from epoch time, aka Jan 1, 1970)
+    rt_start = time.time() # Record when we begin measuring for reaction time (in s since epoch time, aka Jan 1, 1970)
+    #note: response recording begins right after the stimulus is shown
     response_time_val = None
     
     def on_key_press(event):
@@ -257,8 +250,12 @@ def run_trial():
         nonlocal response, response_time_val
         if event.keysym == 'space' and not response['pressed']:
             response['pressed'] = True
+            
+            # Record participant's reaction time in ms (subtract time of key press from when we began measuring)
             response['rt'] = int((time.time() - rt_start) * 1000)
-            response_time_val = time.time() * 1000  # Record response time in ms
+
+            # Record exact time participant pressed the key (in ms since epoch time, aka Jan 1, 1970)
+            response_time_val = time.time() * 1000  
             if DEBUG:
                 print(f"Key pressed at {response['rt']}ms")
 
@@ -286,14 +283,13 @@ def run_trial():
             "version": current_version,
             "block_n": block['n'],
             "trial_index": trial_index,
-            "stimulus_digit": trial['digit'],
+            "stimulus_letter": trial['letter'],
             "is_target": trial['is_target'],
             "response": response['pressed'],
             "accuracy": accuracy,
             "rt": response['rt'],
             "stimulus_onset": stimulus_onset,
             "response_time": response_time_val,
-            "training": block['training'],
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
         }
         experiment_data.append(trial_data)
@@ -342,8 +338,8 @@ def run_tutorial_trial():
     
     # Show stimulus
     trial = trials[trial_index]
-    stimulus_label.config(text=str(trial['digit']), fg='white')
-    instruction_label.config(text=f"Press SPACE if this number matches the one {block['n']} position{'s' if block['n'] > 1 else ''} back")
+    stimulus_label.config(text=str(trial['letter']), fg='white')
+    instruction_label.config(text=f"Press SPACE if this letter matches the one {block['n']} position{'s' if block['n'] > 1 else ''} back")
     feedback_label.config(text="")
     root.update_idletasks()  
     stimulus_onset = time.time() * 1000  # Record stimulus onset in ms (starting from epoch time, aka Jan 1, 1970)
@@ -426,24 +422,6 @@ def run_tutorial_trial():
             feedback_shown = True
             root.update_idletasks()
         
-        # Log tutorial trial
-        trial_data = {
-            "participant_id": participant_id,
-            "version": current_version,
-            "block_n": block['n'],
-            "trial_index": trial_index,
-            "stimulus_digit": trial['digit'],
-            "is_target": trial['is_target'],
-            "response": response['pressed'],
-            "accuracy": (response['pressed'] == trial['correct_response']) if trial['feedback'] else None,
-            "rt": response['rt'],
-            "stimulus_onset": stimulus_onset,
-            "response_time": response_time_val,
-            "training": True,
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        experiment_data.append(trial_data)
-        
         # Show feedback for 1.5 seconds, then show ITI dot
         root.after(1500, show_iti)
     
@@ -488,16 +466,6 @@ def save_data():
         messagebox.showerror("Error", "No data to save")
         return
 
-    # Filter out training trials
-    experimental_data = [
-        trial for trial in experiment_data 
-        if not trial.get('training', True) 
-    ]
-    
-    if not experimental_data:
-        messagebox.showerror("Error", "No experimental data to save")
-        return
-
     # Determine output directory - use Documents folder
     documents_dir = Path.home() / "Documents"
     filename = f"nback_{participant_id}_v{current_version}.csv"
@@ -507,29 +475,28 @@ def save_data():
         with open(filepath, 'w', newline='') as f:
             fieldnames = [
             "Participant ID", "Version", "Block N", "Trial Index", 
-            "Stimulus Digit", "Is Target", "Response", "Accuracy",
+            "Stimulus Letter", "Is Target", "Response", "Accuracy",
             "Reaction Time (ms)", "Stimulus Onset (ms)", "Response Time (ms)",
-            "Training Block", "Timestamp"
+            "Timestamp"
             ]
 
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             
             # Map old keys to new headers
-            for trial in experimental_data:
+            for trial in experiment_data:
                 writer.writerow({
                     "Participant ID": trial['participant_id'],
                     "Version": trial['version'],
                     "Block N": trial['block_n'],
                     "Trial Index": trial['trial_index'],
-                    "Stimulus Digit": trial['stimulus_digit'],
+                    "Stimulus Letter": trial['stimulus_letter'],
                     "Is Target": trial['is_target'],
                     "Response": trial['response'],
                     "Accuracy": trial['accuracy'],
                     "Reaction Time (ms)": trial['rt'],
                     "Stimulus Onset (ms)": trial['stimulus_onset'],
                     "Response Time (ms)": trial['response_time'],
-                    "Training Block": trial['training'],
                     "Timestamp": trial['timestamp']
                 })
 
@@ -608,9 +575,8 @@ def handle_csv_login():
         
         if participant:
             participant_id = participant['Participant iD'].strip()
-            completed = int(participant['Trial Number'].strip())
-            current_version = completed + 1
-            first_time_participant = (completed == 1)
+            current_version = int(participant['Trial Number'].strip())
+            first_time_participant = (current_version == 1)
             
             if current_version > 5:
                 messagebox.showinfo("Complete", "You've finished all trials!")
@@ -765,13 +731,13 @@ def skip_training():
         messagebox.showwarning("Training Required", "Training is mandatory for first-time participants")
         return
         
-    prepare_blocks(training=False)
+    prepare_blocks()
     show_frame(frame_experiment)
     start_block()
 
 def start_actual_experiment():
     """Start the main experiment"""
-    prepare_blocks(training=False)
+    prepare_blocks()
     show_frame(frame_experiment)
     start_block()
 
@@ -873,7 +839,7 @@ ttk.Label(pid_container, text="Alternative Login", style='Title.TLabel').pack(pa
 
 # Updated instruction text for alternative login
 ttk.Label(pid_container, 
-          text="Enter your participant ID and the version number of the trial\n"
+          text="Enter your participant ID and which visit you are on:\n"
                "(1 if this is your first time, 2-5 for subsequent sessions).",
           style='Instruction.TLabel').pack(pady=10)
 
@@ -903,9 +869,9 @@ welcome_title = ttk.Label(inst_container_1, style='Title.TLabel')
 welcome_title.pack(pady=10)
 
 ttk.Label(inst_container_1, 
-          text="In this task, numbers will be presented on the screen one at a time. "
-               "\n\nPay attention to the numbers, and if the number on the screen is the same "
-               "as the number N times before, press the spacebar. \n\nClick the button to view examples and begin the tutorial.",
+          text="In this task, letters will be presented on the screen one at a time. "
+               "\n\nPay attention to the letters, and if the letter on the screen is the same "
+               "as the one N times before, press the spacebar. \n\nClick the button to view examples and begin the tutorial.",
           style='Instruction.TLabel').pack(pady=20, padx=20)
 
 nav_frame_1 = ttk.Frame(inst_container_1)
@@ -921,18 +887,18 @@ inst_container_2.pack(expand=True, padx=40, pady=40)
 
 ttk.Label(inst_container_2, text="1-back Example", style='Title.TLabel').pack(pady=20)
 ttk.Label(inst_container_2, 
-          text="Press SPACEBAR when the number is the same as the previous number:",
+          text="Press SPACEBAR when the letter is the same as the previous letter:",
           style='Instruction.TLabel').pack(pady=10)
 
 example_frame_2 = ttk.Frame(inst_container_2)
 example_frame_2.pack(pady=20)
-ttk.Label(example_frame_2, text="5", style='Example.TLabel').pack(side='left', padx=15)
-ttk.Label(example_frame_2, text="3", style='Example.TLabel').pack(side='left', padx=15)
-ttk.Label(example_frame_2, text="3", style='Example.TLabel', foreground="#ff9900").pack(side='left', padx=15)
+ttk.Label(example_frame_2, text="B", style='Example.TLabel').pack(side='left', padx=15)
+ttk.Label(example_frame_2, text="D", style='Example.TLabel').pack(side='left', padx=15)
+ttk.Label(example_frame_2, text="D", style='Example.TLabel', foreground="#ff9900").pack(side='left', padx=15)
 ttk.Label(example_frame_2, text="→ Press SPACE here", style='Instruction.TLabel').pack(side='left', padx=15)
 
 ttk.Label(inst_container_2, 
-          text="In this example, press SPACE on the third number because it matches the previous number.",
+          text="In this example, press SPACE on the third letter because it matches the previous letter.",
           style='Instruction.TLabel').pack(pady=10)
 
 nav_frame_2 = ttk.Frame(inst_container_2)
@@ -950,18 +916,18 @@ inst_container_3.pack(expand=True, padx=40, pady=40)
 
 ttk.Label(inst_container_3, text="2-back Example", style='Title.TLabel').pack(pady=20)
 ttk.Label(inst_container_3, 
-          text="Press SPACEBAR when the number is the same as the number shown two numbers ago:",
+          text="Press SPACEBAR when the letter is the same as the letter shown two letters ago:",
           style='Instruction.TLabel').pack(pady=10)
 
 example_frame_3 = ttk.Frame(inst_container_3)
 example_frame_3.pack(pady=20)
-ttk.Label(example_frame_3, text="5", style='Example.TLabel').pack(side='left', padx=15)
-ttk.Label(example_frame_3, text="3", style='Example.TLabel').pack(side='left', padx=15)
-ttk.Label(example_frame_3, text="5", style='Example.TLabel', foreground="#ff9900").pack(side='left', padx=15)
+ttk.Label(example_frame_3, text="B", style='Example.TLabel').pack(side='left', padx=15)
+ttk.Label(example_frame_3, text="D", style='Example.TLabel').pack(side='left', padx=15)
+ttk.Label(example_frame_3, text="B", style='Example.TLabel', foreground="#ff9900").pack(side='left', padx=15)
 ttk.Label(example_frame_3, text="→ Press SPACE here", style='Instruction.TLabel').pack(side='left', padx=15)
 
 ttk.Label(inst_container_3, 
-          text="In this example, press SPACE on the third number because it matches \nthe number two positions back.",
+          text="In this example, press SPACE on the third letter (B) because it matches the letter two positions back.",
           style='Instruction.TLabel').pack(pady=10)
 
 nav_frame_3 = ttk.Frame(inst_container_3)
@@ -991,7 +957,7 @@ ttk.Label(inst_container_4,
           style='Instruction.TLabel').pack(pady=10, padx=20)
 
 ttk.Label(inst_container_4, 
-          text="Remember: Press SPACE only if the number matches the one shown N positions back!",
+          text="Remember: Press SPACE only if the letter matches the one shown N positions back!",
           style='Instruction.TLabel', foreground="#ff9900").pack(pady=10, padx=20)
 
 ttk.Label(inst_container_4, 
@@ -1054,8 +1020,8 @@ ttk.Label(transition_container, text="Training Complete!", style='Title.TLabel')
 ttk.Label(transition_container,
           text="Great job! You've finished the training phase.\n\n"
                "Now you'll complete the actual experiment with the same tasks.\n"
-               "It is important to note that in the actual experiment, you will not know if your answers are correct, and the stimuli will be much quicker.\n"
-               "Remember: Press SPACEBAR when the digit matches the one from N positions back.",
+               "\nIt is important to note that in the actual experiment, you will not know if your answers are correct, and the stimuli will be much quicker.\n"
+               "\nRemember: Press SPACEBAR when the letter matches the one from N positions back.",
           wraplength=600,
           justify='center',
           font=("Helvetica", 25)).pack(pady=30)
