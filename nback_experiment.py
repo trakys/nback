@@ -15,7 +15,7 @@ TUTORIAL_STIMULUS_DURATION = 2.0  # 2 seconds for tutorial
 ITI_DURATION = 1.5  # seconds in between stimuli
 TRAINING_TRIALS = 15
 EXPERIMENT_TRIALS = 30
-TARGET_PERCENTAGE = 0.2
+TARGET_PERCENTAGE = 0.35
 N_LEVELS = [1, 2, 3, 4, 5]
 #DIGITS = list(range(10)) - if we want to use numbers instead of letters
 LETTERS = ['B', 'F', 'G', 'H', 'K', 'M', 'Q', 'T', 'R', 'X']  # Phonologically distinct letters
@@ -187,8 +187,8 @@ def get_tutorial_blocks():
             ('D', False, True),
             ('B', True, True),
             ('H', False, True),
-            ('D', True, True),
-            ('K', False, True)
+            ('D', False, True),
+            ('H', True, True)
         ])
     ]
 
@@ -208,6 +208,15 @@ def run_trial():
     
     stimulus_label.config(font=("Helvetica", 144, "bold"))
     
+    # Clear history frame and hide it for main experiment
+    for widget in history_frame.winfo_children():
+        widget.destroy()
+    history_frame.pack_forget()  # Hide the history frame
+    
+        # Show the stimulus frame centered
+    stimulus_frame.pack(expand=True, fill='both')
+    stimulus_label.pack(expand=True, fill='both', padx=50)  # Center the stimulus
+
     if DEBUG:
         print(f"Block: {block_index}/{len(experiment_blocks)}, Trial: {trial_index}")
     
@@ -277,7 +286,7 @@ def run_trial():
         else:
             accuracy = not response['pressed']
 
-        # Log trial data
+        # Log trial data - record RT even if no response was made
         trial_data = {
             "participant_id": participant_id,
             "version": current_version,
@@ -287,7 +296,7 @@ def run_trial():
             "is_target": trial['is_target'],
             "response": response['pressed'],
             "accuracy": accuracy,
-            "rt": response['rt'],
+            "rt": response['rt'],  # Record RT even for incorrect responses
             "stimulus_onset": stimulus_onset,
             "response_time": response_time_val,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
@@ -311,8 +320,35 @@ def run_tutorial_trial():
     # Reset font to 144 at start of each trial
     stimulus_label.config(font=("Helvetica", 144, "bold"))
     
+    # Clear history frame and hide it initially
+    for widget in history_frame.winfo_children():
+        widget.destroy()
+    history_frame.pack_forget()
+
+    # Show the stimulus frame centered
+    stimulus_frame.pack(expand=True, fill='both')
+    stimulus_label.pack(expand=True, fill='both', padx=50)
+
     tutorial_blocks = get_tutorial_blocks()
     
+    # Check if current block is finished
+    if block_index < len(tutorial_blocks):
+        block = tutorial_blocks[block_index]
+        trials = block['trials']
+        
+        # Check if we've completed current block
+        if trial_index >= len(trials):
+            block_index += 1
+            trial_index = 0
+            if block_index >= len(tutorial_blocks):
+                show_frame(frame_transition)
+                return
+            else:
+                stimulus_label.config(text=f"Starting {tutorial_blocks[block_index]['n']}-back...", fg="white")
+                root.update_idletasks()  
+                root.after(1500, run_tutorial_trial)
+                return
+
     # Check if all tutorial blocks are finished
     if block_index >= len(tutorial_blocks):
         show_frame(frame_transition)
@@ -320,21 +356,7 @@ def run_tutorial_trial():
     
     block = tutorial_blocks[block_index]
     trials = block['trials']
-    
-    # Check if current block is finished
-    if trial_index >= len(trials):
-        block_index += 1
-        trial_index = 0
-        
-        if block_index < len(tutorial_blocks):
-            stimulus_label.config(text=f"{tutorial_blocks[block_index]['n']}-back", fg="white")
-            instruction_label.config(text="")
-            feedback_label.config(text="")
-            root.update_idletasks()  
-            root.after(1500, run_tutorial_trial)
-        else:
-            show_frame(frame_transition)
-        return
+    n = block['n']
     
     # Show stimulus
     trial = trials[trial_index]
@@ -342,21 +364,21 @@ def run_tutorial_trial():
     instruction_label.config(text=f"Press SPACE if this letter matches the one {block['n']} position{'s' if block['n'] > 1 else ''} back")
     feedback_label.config(text="")
     root.update_idletasks()  
-    stimulus_onset = time.time() * 1000  # Record stimulus onset in ms (starting from epoch time, aka Jan 1, 1970)
-    #note: time.time() measures in seconds since epoch time
+    stimulus_onset = time.time() * 1000  # Record stimulus onset in ms
     
     response = {'pressed': False, 'rt': None}
-    rt_start = time.time() * 1000 # Record reaction time onset in ms (starting from epoch time, aka Jan 1, 1970)
+    rt_start = time.time() * 1000
     response_time_val = None
     feedback_shown = False
+    waiting_for_space = False
     
     def on_key_press(event):
         """Handle key press during stimulus presentation"""
-        nonlocal response, response_time_val, feedback_shown
-        if event.keysym == 'space' and not response['pressed']:
+        nonlocal response, response_time_val, feedback_shown, waiting_for_space
+        if event.keysym == 'space' and not response['pressed'] and not waiting_for_space:
             response['pressed'] = True
-            response['rt'] = int((time.time() - rt_start) * 1000)
-            response_time_val = time.time() * 1000  # Record response time in ms
+            response['rt'] = int((time.time() * 1000 - rt_start))
+            response_time_val = time.time() * 1000
             
             # Only show feedback if allowed for this trial
             if trial['feedback']:
@@ -376,6 +398,13 @@ def run_tutorial_trial():
                         feedback = "Missed a target! You should have pressed SPACE."
                     else:
                         feedback = "False alarm! You shouldn't press for non-targets."
+                    
+                    # Show previous n letters only for incorrect responses
+                    show_history(n)
+                    
+                    # Require SPACE key press for incorrect responses
+                    feedback += "\nPress SPACE to continue"
+                    waiting_for_space = True
                 
                 # Show immediate feedback
                 stimulus_label.config(fg=color)
@@ -385,18 +414,47 @@ def run_tutorial_trial():
             
             if DEBUG:
                 print(f"Key pressed at {response['rt']}ms")
+        
+        # Handle SPACE key press for incorrect responses
+        elif event.keysym == 'space' and waiting_for_space:
+            waiting_for_space = False
+            show_iti()
 
+    def show_history(n):
+        """Show previous n letters in history frame"""
+        # Clear any existing history
+        for widget in history_frame.winfo_children():
+            widget.destroy()
+        
+        # Unpack the stimulus label
+        stimulus_label.pack_forget()
+
+        # Calculate which letters to show in history
+        start_idx = max(0, trial_index - n)
+        history_letters = [t['letter'] for t in trials[start_idx:trial_index]]
+        
+        # Create labels for each history letter (in grey)
+        for letter in history_letters:
+            lbl = tk.Label(history_frame, 
+                          text=letter, 
+                          font=("Helvetica", 72, "bold"),
+                          fg="#888888",  # Grey color
+                          bg="#2d2d2d")
+            lbl.pack(side='left', padx=10)
+        
+        # Now repack the history and stimulus together
+        history_frame.pack(side='left', padx=(0, 10), pady=0, expand=False)
+        stimulus_label.pack(side='left', padx=0)
+    
     # Bind key handler
     root.unbind('<Key>')
     root.bind('<Key>', on_key_press)
     
     def end_trial():
         """End the current trial with feedback if needed"""
-        nonlocal response, stimulus_onset, response_time_val, feedback_shown
+        nonlocal response, stimulus_onset, response_time_val, feedback_shown, waiting_for_space
         global trial_index
         
-        root.unbind('<Key>')
-
         # Show feedback at end of trial if not already shown and if allowed
         if not feedback_shown and trial['feedback']:
             # Determine if response was correct based on expected behavior
@@ -414,7 +472,17 @@ def run_tutorial_trial():
                 if trial['is_target']:
                     feedback = "Missed a target! You should have pressed SPACE."
                 else:
-                    feedback = "False alarm! You shouldn't press for non-targets."
+                    if n == 1:
+                        feedback = "False alarm! The letter here doesn't match the previous letter."
+                    else:
+                        feedback = "False alarm! The letter here doesn't match the letter shown two positions back."
+                
+                # Show previous n letters only for incorrect responses
+                show_history(n)
+                
+                # Require SPACE key press for incorrect responses
+                feedback += "\nPress SPACE to continue"
+                waiting_for_space = True
             
             # Show feedback
             stimulus_label.config(fg=color)
@@ -422,12 +490,31 @@ def run_tutorial_trial():
             feedback_shown = True
             root.update_idletasks()
         
-        # Show feedback for 1.5 seconds, then show ITI dot
-        root.after(1500, show_iti)
+        # Handle waiting state
+        if waiting_for_space:
+            root.focus_set()
+            root.bind('<Key>', on_key_press)  # Wait for SPACE press
+        else:
+            # Only auto-proceed for correct responses
+            root.after(1500, show_iti)
     
     def show_iti():
         """Show inter-trial interval after feedback duration"""
-        global trial_index  # Add this line to access the global variable
+        nonlocal n, trials
+        global trial_index
+        
+        # Unbind keys at start of ITI
+        root.unbind('<Key>')
+        
+        # Clear history frame and hide it
+        for widget in history_frame.winfo_children():
+            widget.destroy()
+        history_frame.pack_forget()
+        
+        # Show stimulus frame again
+        stimulus_frame.pack(expand=True, fill='both')
+        stimulus_label.pack(expand=True, fill='both', padx=50)
+        
         # Show inter-trial interval indicator
         stimulus_label.config(font=("Helvetica", 48, "bold"), text="•", fg="white")
         root.update_idletasks()  
@@ -466,8 +553,8 @@ def save_data():
         messagebox.showerror("Error", "No data to save")
         return
 
-    # Determine output directory - use Documents folder
-    documents_dir = Path.home() / "Documents"
+    # Determine output directory - use Desktop folder
+    documents_dir = Path.home() / "Desktop"
     filename = f"nback_{participant_id}_v{current_version}.csv"
     filepath = documents_dir / filename
     
@@ -996,12 +1083,21 @@ instruction_label = ttk.Label(experiment_container,
                             anchor='center')
 instruction_label.pack(pady=20)
 
-stimulus_label = tk.Label(experiment_container, 
+# Create frame for stimulus and history
+stimulus_frame = ttk.Frame(experiment_container)
+stimulus_frame.pack(expand=True)
+
+# History frame for previous letters
+history_frame = ttk.Frame(stimulus_frame)
+history_frame.pack(side='left', fill='both', expand=True)
+
+# Current stimulus label
+stimulus_label = tk.Label(stimulus_frame, 
                           text="", 
                           font=("Helvetica", 144, "bold"),
                           fg="#ffffff",
                           bg="#2d2d2d")
-stimulus_label.pack(expand=True)
+stimulus_label.pack(side='left', padx=50)
 
 # Add feedback label for tutorial
 feedback_label = ttk.Label(experiment_container, 
